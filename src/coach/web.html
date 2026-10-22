@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Language Coach</title>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #5c5c57; --line: #e4e4df; --soft: #ecece7;
+  --accent: #2f6fdb; --accent-soft: #eef3fd; --accent-text: #1f4fa3; --danger: #c0392b; --ok: #0f8a6a;
+  --saved: #fff6d6; --saved-line: #e3c25a;
+  --k-grammar: #fdebd8; --k-grammar-t: #8a4a06; --k-word: #e6eefc; --k-word-t: #1f4fa3;
+  --k-natural: #f1e6f6; --k-natural-t: #6e2d82; --k-wordy: #ecece7; --k-wordy-t: #4a4a45;
+  --k-know: #e3f3ee; --k-know-t: #0b6a51;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615; --panel: #1f1f1d; --text: #e9e9e4; --muted: #a3a39c; --line: #33332f; --soft: #2a2a27;
+    --accent: #7aa7ff; --accent-soft: #23314d; --accent-text: #a9c4ff; --danger: #ef7563; --ok: #4cc8a3;
+    --saved: #3a3420; --saved-line: #8a7430;
+    --k-grammar: #3d2a15; --k-grammar-t: #f0b071; --k-word: #1f2d47; --k-word-t: #a9c4ff;
+    --k-natural: #34233c; --k-natural-t: #d7a6e6; --k-wordy: #2a2a27; --k-wordy-t: #c9c9c2;
+    --k-know: #173329; --k-know-t: #7fd6b6;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.55 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: var(--accent); }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 10px 24px;
+  background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+header .brand { font-weight: 700; font-size: 16px; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; }
+nav button { border: none; background: none; color: var(--muted); padding: 8px 12px; border-radius: 6px; }
+nav button.on { color: var(--text); background: var(--soft); font-weight: 600; }
+.spacer { flex: 1; }
+.status { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 999px; background: var(--ok); display: inline-block; }
+.dot.busy { background: var(--accent); animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 24px 64px; display: flex; flex-direction: column; gap: 20px; }
+h1 { margin: 0; font-size: 24px; }
+h2 { font-size: 17px; font-weight: 600; margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.tiny { font-size: 12px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.k-grammar { background: var(--k-grammar); color: var(--k-grammar-t); }
+.k-word { background: var(--k-word); color: var(--k-word-t); }
+.k-natural { background: var(--k-natural); color: var(--k-natural-t); }
+.k-wordy { background: var(--k-wordy); color: var(--k-wordy-t); }
+.k-know { background: var(--k-know); color: var(--k-know-t); }
+.ghost { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 4px 10px; font-size: 13px; min-height: 32px; }
+.ghost:hover { background: var(--soft); }
+.ghost.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.ghost.saved { background: var(--saved); border-color: var(--saved-line); }
+.primary { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 8px 18px; font-weight: 600; }
+.play { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--accent); flex: none; }
+.play.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.stats .v { font-size: 26px; font-weight: 700; }
+.cols { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.cols > .main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 28px; }
+.cols > aside { flex: 1 1 280px; min-width: 260px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 72px; }
+section { display: flex; flex-direction: column; gap: 12px; }
+.expr { display: flex; gap: 14px; }
+.expr .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.said { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.better { font-weight: 600; }
+.personas { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-top: 4px; }
+.persona { background: var(--bg); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.persona .row { justify-content: space-between; }
+.side-actions { display: flex; flex-direction: column; gap: 6px; }
+.banner { border-radius: 8px; padding: 10px 14px; background: var(--accent-soft); color: var(--accent-text); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.banner.warn { background: var(--k-grammar); color: var(--k-grammar-t); }
+.pron { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--soft); }
+.pron:first-child { border-top: none; padding-top: 0; }
+.pron b { min-width: 120px; }
+.ipa { font-family: ui-monospace, Menlo, Consolas, monospace; }
+.empty { color: var(--muted); padding: 24px; text-align: center; }
+.sugg { display: flex; gap: 8px; align-items: flex-start; }
+.sugg > div { flex: 1; min-width: 0; }
+table { border-collapse: collapse; width: 100%; min-width: 760px; }
+th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--line); }
+td { padding: 12px; border-bottom: 1px solid var(--soft); vertical-align: top; }
+.tablebox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+input[type=search], input[type=text], input[type=number], select { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; background: var(--panel); }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.opt.on { border-color: var(--accent); background: var(--accent-soft); }
+.pchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.pchip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; background: var(--panel); font-size: 13px; cursor: pointer; min-height: 32px; }
+.pchip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+.form { display: grid; grid-template-columns: 160px 1fr; gap: 10px 14px; align-items: center; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg);
+  padding: 8px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; }
+.toast.show { opacity: 1; }
+@media (max-width: 760px) {
+  header, main { padding-left: 16px; padding-right: 16px; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cols > aside { position: static; }
+  .expr { flex-wrap: wrap; }
+  .side-actions { flex-direction: row; }
+  .form { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Language Coach</div>
+  <nav>
+    <button data-view="day" data-i18n="navDay"></button>
+    <button data-view="corpus" data-i18n="navCorpus"></button>
+    <button data-view="settings" data-i18n="navSettings"></button>
+  </nav>
+  <span class="spacer"></span>
+  <span class="status" id="status"></span>
+  <button class="ghost" id="langBtn"></button>
+</header>
+<main id="main"></main>
+<audio id="audio" preload="none"></audio>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function localGet(k, d) { try { return localStorage.getItem("coach." + k) ?? d; } catch { return d; } }
+function localSet(k, v) { try { localStorage.setItem("coach." + k, v); } catch {} }
+
+const STRINGS = {
+  en: {
+    navDay: "Daily report", navCorpus: "Corpus", navSettings: "Settings", otherLang: "中文",
+    idle: "Watching for new recordings", analysing: "Analysing recording {id}…", queued: "{n} queued",
+    week: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    prevDay: "Previous day", nextDay: "Next day", rerun: "Regenerate",
+    noDays: "No recordings yet. Sync your recorder, and the coach analyses new recordings within a few minutes.",
+    analysedOf: "{a} of {n} recordings analysed", model: "model {m}",
+    pending: "{n} recordings not analysed yet.", runNow: "Analyse now",
+    failed: "{n} recordings failed: {err}", stale: "Made with older settings.",
+    rerunQueued: "Queued {n} recordings", rerunNone: "Already queued",
+    sStatSent: "My English sentences", sStatExpr: "Expressions", sStatPron: "Pronunciation", sStatKnow: "Might have missed",
+    expressions: "Expressions", personasNote: "Famous people: {names} (change in Settings)",
+    all: "All", kinds: { grammar: "Grammar", word: "Word choice", natural: "Unnatural", wordy: "Wordy" },
+    save: "Save", saved: "Saved", wrong: "Not right", dismissed: "Hidden", savedToast: "Added to the corpus", removedToast: "Removed from the corpus",
+    style: "style imitation", noExpr: "Nothing to fix today.",
+    knowledge: "You might have missed", knowIt: "I know this", wiki: "Check on Wikipedia", whyMissed: "Why: {e}", knownToast: "Won't bring up “{t}” again",
+    noKnow: "Nothing found.",
+    pronunciation: "Pronunciation", upTo: "up to {n} a day", yours: "▶ Yours", standard: "▶ Standard", noPron: "No unsure words today.",
+    suggest: "Worth keeping", suggestHint: "From today's conversations. Saved ones go to your corpus.", saveAll: "Save all", noSugg: "No suggestions.",
+    fromMe: "you", fromOther: "someone else",
+    playOrig: "Play the recording", noAudio: "Can't play this recording: {msg}",
+    corpus: "Corpus", entries: "{n} entries", exportMd: "Export Markdown", searchPh: "Phrase, meaning or example…",
+    sources: { expression: "Feedback", persona: "Famous people", other: "Others said", knowledge: "Knowledge", me: "Mine" },
+    cPhrase: "Phrase", cMeaning: "Meaning", cFrom: "From", cSource: "Source", cAdded: "Added", remove: "Remove",
+    noCorpus: "Nothing saved yet. Use “Save” in the daily report.",
+    settings: "Settings", goal: "Learning goal", goalHint: "Decides what the feedback focuses on. New analyses use the new goal; regenerate a day to apply it there.",
+    goals: { work: ["Work meetings", "Professional, concise, meeting phrases"], daily: ["Everyday speech", "Idiomatic, natural, less bookish"], exam: ["Exams", "Accurate grammar, varied words"] },
+    famous: "Famous people", famousHint: "Every expression comes with how these people might say it. Pick 1–2: the more you pick, the slower the local model.",
+    picked: "{n} picked", male: "Men", female: "Women", tagAll: "All", tags: { work: "Work", daily: "Everyday", speech: "Speeches", explain: "Explaining" },
+    limits: "Daily limits", maxExpr: "Expressions", maxPron: "Pronunciation", perDay: "per day",
+    modelRun: "Model", ollamaModel: "Ollama model", ollamaUrl: "Ollama address", numCtx: "Context (tokens)", explainIn: "Explanations in", uiLang: "Page language",
+    auto: "Follow the browser", noModels: "Ollama isn't answering, or has no models. Run: ollama pull qwen3:14b",
+    saveSettings: "Save", settingsSaved: "Settings saved", error: "Error: {msg}", dbs: "Databases",
+  },
+  zh: {
+    navDay: "日报", navCorpus: "语料库", navSettings: "设置", otherLang: "EN",
+    idle: "自动分析运行中", analysing: "正在分析录音 {id}…", queued: "排队 {n} 条",
+    week: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"],
+    prevDay: "前一天", nextDay: "后一天", rerun: "重新生成",
+    noDays: "还没有录音。同步录音设备后，几分钟内会自动分析新录音。",
+    analysedOf: "已分析 {a}/{n} 段录音", model: "模型 {m}",
+    pending: "还有 {n} 段录音没分析。", runNow: "现在分析",
+    failed: "{n} 段录音分析失败：{err}", stale: "这是用旧设置生成的。",
+    rerunQueued: "已排队 {n} 段录音", rerunNone: "已经在排队了",
+    sStatSent: "我说的英文", sStatExpr: "表达点评", sStatPron: "发音点评", sStatKnow: "可能没听懂",
+    expressions: "表达点评", personasNote: "名人：{names}（设置里可换）",
+    all: "全部", kinds: { grammar: "语法", word: "用词", natural: "不地道", wordy: "啰嗦" },
+    save: "收藏", saved: "已收藏", wrong: "不对", dismissed: "已隐藏", savedToast: "已收进语料库", removedToast: "已从语料库移除",
+    style: "风格模仿", noExpr: "今天没有需要改的表达。",
+    knowledge: "你可能没听懂", knowIt: "我懂这个", wiki: "在 Wikipedia 核对", whyMissed: "为什么猜你没听懂：{e}", knownToast: "以后不再提“{t}”",
+    noKnow: "没有发现。",
+    pronunciation: "发音点评", upTo: "每天最多 {n} 条", yours: "▶ 你的", standard: "▶ 标准", noPron: "今天没有没把握的词。",
+    suggest: "推荐收藏", suggestHint: "从今天的对话里挑的，收藏后进入语料库。", saveAll: "全部收藏", noSugg: "没有推荐。",
+    fromMe: "你说的", fromOther: "别人说的",
+    playOrig: "播放原声", noAudio: "放不了这段录音：{msg}",
+    corpus: "语料库", entries: "{n} 条", exportMd: "导出 Markdown", searchPh: "表达、中文意思或例句…",
+    sources: { expression: "点评", persona: "名人说法", other: "别人说的", knowledge: "知识点", me: "我的" },
+    cPhrase: "表达", cMeaning: "意思", cFrom: "出处", cSource: "来源", cAdded: "收藏于", remove: "移除",
+    noCorpus: "还没有收藏。在日报里点“收藏”就会出现在这里。",
+    settings: "设置", goal: "学习目标", goalHint: "决定表达点评挑什么、侧重什么。新分析按新目标来；想让某天也按新目标，点那天的“重新生成”。",
+    goals: { work: ["工作会议", "专业、简洁、会议常用句式"], daily: ["日常口语", "地道、自然、少书面腔"], exam: ["考试", "语法准确、用词多样"] },
+    famous: "名人说法", famousHint: "每条表达点评附上这几位的说法，都是风格模仿。建议选 1–2 位：选得越多，本地模型越慢。",
+    picked: "已选 {n} 位", male: "男", female: "女", tagAll: "全部", tags: { work: "工作", daily: "日常", speech: "演讲", explain: "讲解" },
+    limits: "每天上限", maxExpr: "表达点评", maxPron: "发音点评", perDay: "条",
+    modelRun: "模型", ollamaModel: "Ollama 模型", ollamaUrl: "Ollama 地址", numCtx: "上下文（token）", explainIn: "解释用", uiLang: "界面语言",
+    auto: "跟随浏览器", noModels: "Ollama 没有响应，或还没有模型。运行：ollama pull qwen3:14b",
+    saveSettings: "保存", settingsSaved: "设置已保存", error: "出错：{msg}", dbs: "数据库",
+  },
+};
+let LANG = (l => l in STRINGS ? l : (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en")(localGet("lang", ""));
+function t(key, vars = {}) {
+  const s = STRINGS[LANG][key] ?? STRINGS.en[key] ?? key;
+  return typeof s === "string" ? s.replace(/\{(\w+)\}/g, (m, k) => k in vars ? vars[k] : m) : s;
+}
+function applyLang() {
+  document.documentElement.lang = LANG === "zh" ? "zh-CN" : "en";
+  document.querySelectorAll("[data-i18n]").forEach(el => el.textContent = t(el.dataset.i18n));
+  $("#langBtn").textContent = t("otherLang");
+}
+$("#langBtn").onclick = () => { LANG = LANG === "zh" ? "en" : "zh"; localSet("lang", LANG); applyLang(); show(state.view); };
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    method: opts.method || "GET",
+    headers: opts.body ? { "Content-Type": "application/json" } : {},
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+function toast(msg) {
+  const el = $("#toast"); el.textContent = msg; el.classList.add("show");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 2400);
+}
+const fail = e => toast(t("error", { msg: e.message }));
+
+const pad2 = n => String(n).padStart(2, "0");
+function clock(startedAt, offset) {
+  if (!startedAt) { const s = Math.floor(offset); return Math.floor(s / 60) + ":" + pad2(s % 60); }
+  const d = new Date(new Date(startedAt).getTime() + offset * 1000);
+  return pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+}
+const ICON_PLAY = `<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 2l7 4-7 4z" fill="currentColor"/></svg>`;
+const playBtn = (rid, start, end, label = t("playOrig")) =>
+  `<button class="play" type="button" aria-label="${esc(label)}" title="${esc(label)}" data-play="${rid}" data-start="${start}" data-end="${end}">${ICON_PLAY}</button>`;
+
+// ---------- audio: play a stretch of a recording ----------
+const audio = $("#audio");
+let stopAt = null, playingBtn = null;
+audio.addEventListener("timeupdate", () => { if (stopAt !== null && audio.currentTime >= stopAt) audio.pause(); });
+audio.addEventListener("pause", () => { playingBtn?.classList.remove("on"); playingBtn = null; });
+async function playClip(btn) {
+  const rid = btn.dataset.play, start = +btn.dataset.start, end = +btn.dataset.end;
+  if (playingBtn === btn) { audio.pause(); return; }
+  const src = `/api/recordings/${rid}/audio`;
+  if (!audio.src.endsWith(src)) { audio.src = src; audio.preload = "auto"; }
+  try {
+    if (audio.readyState < 1) await new Promise((ok, no) => { audio.onloadedmetadata = ok; audio.onerror = () => no(new Error("load failed")); });
+    audio.currentTime = Math.max(0, start - 0.15); stopAt = end + 0.2;
+    playingBtn?.classList.remove("on"); playingBtn = btn; btn.classList.add("on");
+    await audio.play();
+  } catch (e) { toast(t("noAudio", { msg: e.message })); }
+}
+function sayStandard(word) {
+  if (!("speechSynthesis" in window)) return;
+  const u = new SpeechSynthesisUtterance(word); u.lang = "en-US"; u.rate = 0.85;
+  const v = speechSynthesis.getVoices().find(v => v.lang === "en-US"); if (v) u.voice = v;
+  speechSynthesis.cancel(); speechSynthesis.speak(u);
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-play]"); if (b) playClip(b);
+  const s = e.target.closest("[data-say]"); if (s) sayStandard(s.dataset.say);
+});
+
+// ---------- views ----------
+const state = { view: "day", days: [], day: null, report: null, kind: "", corpusQ: "", corpusSource: "", settings: null, tag: "" };
+document.querySelectorAll("nav [data-view]").forEach(b => b.onclick = () => show(b.dataset.view));
+function show(view) {
+  state.view = view; localSet("view", view);
+  document.querySelectorAll("nav [data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === view));
+  ({ day: showDay, corpus: showCorpus, settings: showSettings })[view]().catch(fail);
+}
+
+// ---------- daily report ----------
+function dayLabel(day) {
+  const d = new Date(day + "T00:00:00");
+  return `${day} ${t("week")[d.getDay()]}`;
+}
+async function showDay(day) {
+  state.days = await api("/api/days");
+  if (!state.days.length) { $("#main").innerHTML = `<div class="empty">${t("noDays")}</div>`; return; }
+  if (day) state.day = day;
+  if (!state.day || !state.days.some(d => d.day === state.day)) state.day = state.days[0].day;
+  state.report = await api(`/api/days/${state.day}`);
+  renderDay();
+}
+function renderDay() {
+  const r = state.report, i = state.days.findIndex(d => d.day === r.day);
+  const prev = state.days[i + 1]?.day, next = state.days[i - 1]?.day;
+  const names = (state.settings?.settings.personas || []).map(k => personaName(k)).join(" · ");
+  const exprs = r.expressions.filter(e => !state.kind || e.kind === state.kind);
+  const when = (rid, start) => `${clock(r.started[rid], start)} · ${esc(r.titles[rid] || "#" + rid)}`;
+  const banners = [];
+  if (r.pending.length) banners.push(`<div class="banner">${t("pending", { n: r.pending.length })}<button class="ghost" data-run>${t("runNow")}</button></div>`);
+  if (r.failed.length) banners.push(`<div class="banner warn">${esc(t("failed", { n: r.failed.length, err: r.failed[0].error || "" }))}<button class="ghost" data-run>${t("rerun")}</button></div>`);
+  if (r.stale) banners.push(`<div class="banner">${t("stale")}<button class="ghost" data-run>${t("rerun")}</button></div>`);
+  const max = state.settings?.settings || { max_expressions: 10, max_pronunciation: 10 };
+  $("#main").innerHTML = `
+    <div class="row" style="gap:12px">
+      <button class="ghost" data-day="${prev || ""}" ${prev ? "" : "disabled"} aria-label="${t("prevDay")}">‹</button>
+      <h1>${dayLabel(r.day)}</h1>
+      <button class="ghost" data-day="${next || ""}" ${next ? "" : "disabled"} aria-label="${t("nextDay")}">›</button>
+      <span class="muted small">${t("analysedOf", { a: r.analysed, n: r.recordings })}${r.models.length ? " · " + t("model", { m: esc(r.models.join(", ")) }) : ""}</span>
+      <span class="spacer"></span>
+      <button class="ghost" data-run>${t("rerun")}</button>
+    </div>
+    ${banners.join("")}
+    <div class="stats">
+      <div class="card"><div class="muted tiny">${t("sStatSent")}</div><div class="v">${r.sentences}</div></div>
+      <div class="card"><div class="muted tiny">${t("sStatExpr")}</div><div class="v">${r.expressions.length} / ${max.max_expressions}</div></div>
+      <div class="card"><div class="muted tiny">${t("sStatPron")}</div><div class="v">${r.pronunciation.length} / ${max.max_pronunciation}</div></div>
+      <div class="card"><div class="muted tiny">${t("sStatKnow")}</div><div class="v">${r.knowledge.length}</div></div>
+    </div>
+    <div class="cols">
+      <div class="main">
+        <section>
+          <div class="row"><h2>${t("expressions")}</h2>${names ? `<span class="muted small">${esc(t("personasNote", { names }))}</span>` : ""}<span class="spacer"></span>
+            ${["", "grammar", "word", "natural", "wordy"].map(k => `<button class="ghost ${state.kind === k ? "on" : ""}" data-kind="${k}">${k ? t("kinds")[k] : t("all")}</button>`).join("")}
+          </div>
+          ${exprs.length ? exprs.map(e => `
+          <article class="card expr">
+            ${playBtn(e.recording_id, e.start, e.end)}
+            <div class="body">
+              <div class="row tiny"><span class="chip k-${e.kind}">${t("kinds")[e.kind] || e.kind}</span><span class="muted">${when(e.recording_id, e.start)}</span></div>
+              <div class="said">${esc(e.said)}</div>
+              <div class="better">${esc(e.better)}</div>
+              ${e.why ? `<div class="muted small">${esc(e.why)}</div>` : ""}
+              ${e.personas.length ? `<div class="personas">${e.personas.map(p => `
+                <div class="persona">
+                  <div class="row"><span class="tiny"><b>${esc(personaName(p.persona, p))}</b> <span class="muted">· ${t("style")}</span></span>
+                    ${saveBtn(p.line, { source: "persona", persona: p.persona, meaning: p.note, example: p.line, recording_id: e.recording_id, day: r.day, start: e.start, end: e.end })}</div>
+                  <div>${esc(p.line)}</div>
+                  ${p.note ? `<div class="muted tiny">${esc(p.note)}</div>` : ""}
+                </div>`).join("")}</div>` : ""}
+            </div>
+            <div class="side-actions">
+              ${saveBtn(e.better, { source: "expression", meaning: e.why, example: e.better, recording_id: e.recording_id, day: r.day, start: e.start, end: e.end }, true)}
+              <button class="ghost" data-dismiss="${e.id}">${t("wrong")}</button>
+            </div>
+          </article>`).join("") : `<div class="card muted">${t("noExpr")}</div>`}
+        </section>
+
+        <section>
+          <h2>${t("knowledge")}</h2>
+          ${r.knowledge.length ? r.knowledge.map(k => `
+          <article class="card" style="display:flex;flex-direction:column;gap:8px">
+            <div class="row"><span style="font-size:18px;font-weight:700">${esc(k.term)}</span>${k.category ? `<span class="chip k-know">${esc(k.category)}</span>` : ""}</div>
+            <div class="row" style="flex-wrap:nowrap">${playBtn(k.recording_id, k.start, k.end)}<div><span class="muted">${esc(k.speaker || "")}：</span>${esc(k.quote)}</div></div>
+            <div>${esc(k.explanation)}</div>
+            ${k.evidence ? `<div class="muted small">${esc(t("whyMissed", { e: k.evidence }))}</div>` : ""}
+            <div class="row">
+              ${saveBtn(k.term, { source: "knowledge", meaning: k.explanation, example: k.quote, recording_id: k.recording_id, day: r.day, start: k.start, end: k.end }, true)}
+              <button class="ghost" data-known="${esc(k.term)}">${t("knowIt")}</button>
+              <a class="small" target="_blank" rel="noopener" href="https://en.wikipedia.org/w/index.php?search=${encodeURIComponent(k.term)}">${t("wiki")}</a>
+            </div>
+          </article>`).join("") : `<div class="card muted">${t("noKnow")}</div>`}
+        </section>
+
+        <section>
+          <div class="row"><h2>${t("pronunciation")}</h2><span class="muted small">${t("upTo", { n: max.max_pronunciation })}</span></div>
+          <div class="card">
+            ${r.pronunciation.length ? r.pronunciation.map(p => `
+            <div class="pron">
+              <b>${esc(p.word)}</b>${p.ipa ? `<span class="muted ipa">/${esc(p.ipa)}/</span>` : ""}
+              <span class="small" style="flex:1;min-width:200px">${esc(p.tip)} <span class="muted tiny">(${Math.round(p.probability * 100)}%)</span></span>
+              <button class="ghost" data-play="${p.recording_id}" data-start="${p.start}" data-end="${p.end}">${t("yours")}</button>
+              <button class="ghost" data-say="${esc(p.word)}">${t("standard")}</button>
+            </div>`).join("") : `<div class="muted">${t("noPron")}</div>`}
+          </div>
+        </section>
+      </div>
+      <aside class="card">
+        <div class="row"><h2>${t("suggest")}</h2><span class="spacer"></span>${r.suggestions.some(s => !s.saved) ? `<button class="ghost" data-save-all>${t("saveAll")}</button>` : ""}</div>
+        <div class="muted small">${t("suggestHint")}</div>
+        ${r.suggestions.length ? r.suggestions.map(s => `
+        <div class="sugg"><div><b>${esc(s.phrase)}</b><div class="muted tiny">${esc(s.meaning)} · ${s.source === "me" ? t("fromMe") : t("fromOther")}</div></div>
+          ${saveBtn(s.phrase, { source: s.source === "me" ? "me" : "other", meaning: s.meaning, example: s.example, recording_id: s.recording_id, day: r.day, start: s.start, end: s.end }, false, s.saved)}</div>`).join("") : `<div class="muted small">${t("noSugg")}</div>`}
+      </aside>
+    </div>`;
+}
+// a save-to-corpus button; the entry rides along as JSON
+const savedPhrases = new Set();
+function saveBtn(phrase, entry, wide = false, saved = false) {
+  if (saved) savedPhrases.add(phrase.toLowerCase());
+  const on = savedPhrases.has(phrase.toLowerCase());
+  const label = wide ? (on ? t("saved") : t("save")) : (on ? "★" : "☆");
+  return `<button class="ghost ${on ? "saved" : ""}" aria-label="${on ? t("saved") : t("save")}" data-save='${esc(JSON.stringify({ phrase, ...entry }))}'>${label}</button>`;
+}
+function personaName(key, p) {
+  const known = state.settings?.personas.find(x => x.key === key);
+  const src = known || p || {};
+  return (LANG === "zh" ? src.name_zh : src.name) || src.name || key;
+}
+async function saveToCorpus(btn) {
+  const entry = JSON.parse(btn.dataset.save);
+  await api("/api/corpus", { method: "POST", body: entry });
+  savedPhrases.add(entry.phrase.toLowerCase());
+  toast(t("savedToast"));
+}
+$("#main").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  try {
+    if (b.dataset.day) return showDay(b.dataset.day);
+    if ("kind" in b.dataset) { state.kind = b.dataset.kind; return renderDay(); }
+    if ("run" in b.dataset) {
+      const r = await api(`/api/days/${state.day}/run`, { method: "POST" });
+      toast(r.queued ? t("rerunQueued", { n: r.queued }) : t("rerunNone")); return pollStatus();
+    }
+    if (b.dataset.save) { await saveToCorpus(b); return state.view === "day" ? renderDay() : null; }
+    if ("saveAll" in b.dataset) {
+      for (const el of $("aside").querySelectorAll("[data-save]")) if (!el.classList.contains("saved")) await saveToCorpus(el);
+      return renderDay();
+    }
+    if (b.dataset.dismiss) {
+      await api(`/api/expressions/${b.dataset.dismiss}/dismiss`, { method: "POST" });
+      state.report.expressions = state.report.expressions.filter(x => x.id !== +b.dataset.dismiss);
+      toast(t("dismissed")); return renderDay();
+    }
+    if (b.dataset.known) {
+      await api("/api/known", { method: "POST", body: { term: b.dataset.known } });
+      toast(t("knownToast", { t: b.dataset.known })); return showDay();
+    }
+    if (b.dataset.remove) {
+      await api(`/api/corpus/${b.dataset.remove}`, { method: "DELETE" });
+      toast(t("removedToast")); return showCorpus();
+    }
+    if (b.dataset.source !== undefined) { state.corpusSource = b.dataset.source; return showCorpus(); }
+  } catch (err) { fail(err); }
+});
+
+// ---------- corpus ----------
+async function showCorpus() {
+  const q = new URLSearchParams({ q: state.corpusQ, source: state.corpusSource });
+  const rows = await api("/api/corpus?" + q);
+  rows.forEach(r => savedPhrases.add(r.phrase.toLowerCase()));
+  const focused = document.activeElement?.id === "cq";
+  $("#main").innerHTML = `
+    <div class="row" style="gap:12px"><h1>${t("corpus")}</h1><span class="muted">${t("entries", { n: rows.length })}</span><span class="spacer"></span>
+      <a href="/api/corpus.md" download="corpus.md"><button class="ghost">${t("exportMd")}</button></a></div>
+    <div class="row">
+      <input id="cq" type="search" style="flex:1 1 280px" placeholder="${t("searchPh")}" value="${esc(state.corpusQ)}" aria-label="${t("searchPh")}">
+      ${["", "expression", "persona", "other", "knowledge", "me"].map(s => `<button class="ghost ${state.corpusSource === s ? "on" : ""}" data-source="${s}">${s ? t("sources")[s] : t("all")}</button>`).join("")}
+    </div>
+    ${rows.length ? `<div class="tablebox"><table>
+      <thead><tr><th style="width:48px"></th><th>${t("cPhrase")}</th><th>${t("cMeaning")}</th><th>${t("cFrom")}</th><th>${t("cSource")}</th><th>${t("cAdded")}</th><th></th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td>${r.recording_id && r.start != null ? playBtn(r.recording_id, r.start, r.end) : ""}</td>
+        <td><b>${esc(r.phrase)}</b>${r.example && r.example !== r.phrase ? `<div class="muted tiny">${esc(r.example)}</div>` : ""}</td>
+        <td>${esc(r.meaning)}</td>
+        <td class="muted small">${esc(r.day || "")}</td>
+        <td><span class="chip k-wordy">${esc(r.persona ? personaName(r.persona) : t("sources")[r.source] || r.source)}</span></td>
+        <td class="muted small">${esc((r.created_at || "").slice(0, 10))}</td>
+        <td><button class="ghost" data-remove="${r.id}">${t("remove")}</button></td>
+      </tr>`).join("")}</tbody></table></div>` : `<div class="card muted">${t("noCorpus")}</div>`}`;
+  const input = $("#cq");
+  input.oninput = () => { clearTimeout(input.timer); input.timer = setTimeout(() => { state.corpusQ = input.value; showCorpus().catch(fail); }, 250); };
+  if (focused) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+}
+
+// ---------- settings ----------
+async function loadSettings() { state.settings = await api("/api/settings"); return state.settings; }
+async function showSettings(keep) {
+  const { settings: s, personas, models, recorder_db, coach_db } = await loadSettings();
+  const draft = state.draft = keep || JSON.parse(JSON.stringify(s));
+  const tags = ["", "work", "daily", "speech", "explain"];
+  const chips = gender => personas.filter(p => p.gender === gender && (!state.tag || p.tags.includes(state.tag))).map(p => `
+    <label class="pchip ${draft.personas.includes(p.key) ? "on" : ""}" title="${esc(p.style)}"><input type="checkbox" data-persona="${p.key}" ${draft.personas.includes(p.key) ? "checked" : ""}> ${esc(LANG === "zh" ? p.name_zh : p.name)}</label>`).join("");
+  const modelOpts = [...new Set([s.model, ...models])];
+  $("#main").innerHTML = `
+    <h1>${t("settings")}</h1>
+    <section class="card">
+      <h2>${t("goal")}</h2><div class="muted small">${t("goalHint")}</div>
+      <div class="opts">${state.settings.goals.map(g => `<label class="opt ${draft.goal === g ? "on" : ""}"><input type="radio" name="goal" value="${g}" ${draft.goal === g ? "checked" : ""}><span><b>${t("goals")[g][0]}</b><br><span class="muted small">${t("goals")[g][1]}</span></span></label>`).join("")}</div>
+    </section>
+    <section class="card">
+      <div class="row"><h2>${t("famous")}</h2><span class="muted small" id="pickedN">${t("picked", { n: draft.personas.length })}</span></div>
+      <div class="muted small">${t("famousHint")}</div>
+      <div class="row">${tags.map(g => `<button class="ghost ${state.tag === g ? "on" : ""}" data-tag="${g}">${g ? t("tags")[g] : t("tagAll")}</button>`).join("")}</div>
+      <div class="muted tiny"><b>${t("male")}</b></div><div class="pchips">${chips("male")}</div>
+      <div class="muted tiny"><b>${t("female")}</b></div><div class="pchips">${chips("female")}</div>
+    </section>
+    <section class="card">
+      <h2>${t("limits")}</h2>
+      <div class="row" style="gap:24px">
+        <label class="row">${t("maxExpr")} <input type="number" id="maxE" min="1" max="30" value="${s.max_expressions}" style="width:72px"> ${t("perDay")}</label>
+        <label class="row">${t("maxPron")} <input type="number" id="maxP" min="0" max="30" value="${s.max_pronunciation}" style="width:72px"> ${t("perDay")}</label>
+      </div>
+    </section>
+    <section class="card">
+      <h2>${t("modelRun")}</h2>
+      <div class="form">
+        <label for="mdl">${t("ollamaModel")}</label>
+        <div class="row"><input id="mdl" type="text" list="mdlList" value="${esc(s.model)}" style="flex:1"><datalist id="mdlList">${modelOpts.map(m => `<option value="${esc(m)}">`).join("")}</datalist></div>
+        ${models.length ? "" : `<span></span><span class="muted small">${t("noModels")}</span>`}
+        <label for="url">${t("ollamaUrl")}</label><input id="url" type="text" value="${esc(s.ollama_url)}">
+        <label for="ctx">${t("numCtx")}</label><input id="ctx" type="number" min="2048" step="1024" value="${s.num_ctx}">
+        <label for="exp">${t("explainIn")}</label><select id="exp"><option value="zh" ${s.explain_in === "zh" ? "selected" : ""}>中文</option><option value="en" ${s.explain_in === "en" ? "selected" : ""}>English</option></select>
+        <span>${t("dbs")}</span><span class="muted small">${esc(recorder_db)}<br>${esc(coach_db)}</span>
+      </div>
+    </section>
+    <div class="row" style="justify-content:flex-end"><button class="primary" id="saveSettings">${t("saveSettings")}</button></div>`;
+  $("#main").querySelectorAll("[name=goal]").forEach(r => r.onchange = () => {
+    draft.goal = r.value; $("#main").querySelectorAll(".opt").forEach(o => o.classList.toggle("on", o.querySelector("input").checked));
+  });
+  $("#main").querySelectorAll("[data-persona]").forEach(c => c.onchange = () => {
+    const k = c.dataset.persona;
+    draft.personas = c.checked ? [...draft.personas, k] : draft.personas.filter(x => x !== k);
+    c.closest(".pchip").classList.toggle("on", c.checked);
+    $("#pickedN").textContent = t("picked", { n: draft.personas.length });
+  });
+  $("#main").querySelectorAll("[data-tag]").forEach(b => b.onclick = () => {
+    state.tag = b.dataset.tag; showSettings(draft).catch(fail);
+  });
+  $("#saveSettings").onclick = async () => {
+    try {
+      await api("/api/settings", { method: "POST", body: {
+        ...draft, max_expressions: +$("#maxE").value, max_pronunciation: +$("#maxP").value,
+        model: $("#mdl").value.trim(), ollama_url: $("#url").value.trim(), num_ctx: +$("#ctx").value, explain_in: $("#exp").value,
+      } });
+      await loadSettings(); toast(t("settingsSaved"));
+    } catch (e) { fail(e); }
+  };
+}
+
+// ---------- status ----------
+async function pollStatus() {
+  clearTimeout(pollStatus.timer);
+  try {
+    const s = await api("/api/status");
+    const busy = s.current || s.queued.length;
+    $("#status").innerHTML = `<span class="dot ${busy ? "busy" : ""}"></span>` + (s.current
+      ? t("analysing", { id: s.current.recording }) + (s.queued.length > 1 ? " · " + t("queued", { n: s.queued.length }) : "")
+      : s.queued.length ? t("queued", { n: s.queued.length }) : t("idle"));
+    if (pollStatus.wasBusy && !busy && state.view === "day") showDay().catch(fail);  // a run just finished
+    pollStatus.wasBusy = busy;
+    pollStatus.timer = setTimeout(pollStatus, busy ? 3000 : 15000);
+  } catch { pollStatus.timer = setTimeout(pollStatus, 15000); }
+}
+
+applyLang();
+loadSettings().catch(() => {}).finally(() => show(localGet("view", "day")));
+pollStatus();
+</script>
+</body>
+</html>
