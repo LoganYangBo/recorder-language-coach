@@ -31,6 +31,14 @@ python -m venv .venv
 pip install -e .
 ```
 
+The coach needs an SDK at least as new as the one that wrote your `recorder.db`
+(otherwise: `database schema vN is newer than this SDK`). If you run the SDK from a
+checkout, install that checkout into the coach's venv instead:
+
+```powershell
+pip install -e C:\Users\Logan\Projects\recorder-sdk[learn]
+```
+
 Then install Ollama from https://ollama.com/download and pull a model.
 For a 12 GB GPU, `qwen3:14b` is the default; `gemma3:12b` is a good second choice.
 
