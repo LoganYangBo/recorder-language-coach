@@ -2,11 +2,11 @@ from conftest import FakeLLM
 from recorder import Recorder
 
 from coach import personas
-from coach.analyze import schema, system_prompt, user_prompt
+from coach.analyze import find_prompt, polish_input, polish_prompt, polish_schema, transcript
 from coach.coach import Coach
 from coach.lang import is_english
 from coach.settings import Settings, save
-from coach.source import chunks, load_material
+from coach.source import chunks, day_unsure, load_material
 
 
 def test_is_english():
@@ -25,8 +25,9 @@ def test_material(recorder_db):
         (2, "Alice"),
     ]  # 2 short/中文 lines out
     assert "⟦thoroughly⟧" in m.lines[0].text and "⟦We⟧" not in m.lines[0].text
-    assert [w.word.strip() for w in m.unsure] == ["thoroughly"]
     assert m.sentences == 1
+    with Recorder(recorder_db) as rec:
+        assert [w.word.strip() for w in day_unsure(rec, "2026-10-21")] == ["thoroughly"]
     with Recorder(recorder_db) as rec:
         assert load_material(rec, 2).sentences == 0
 
@@ -51,17 +52,23 @@ def test_personas_load_and_override(tmp_path):
     assert mixed["jobs"].name == "Mine" and mixed["me"].style == "no front matter"
 
 
-def test_prompts_mention_personas_and_goal(recorder_db):
+def test_prompts(recorder_db):
     ps = personas.load()
     s = Settings(goal="exam", personas=["jobs"])
-    text = system_prompt(s, [ps["jobs"]])
+    text = polish_prompt(s, [ps["jobs"]])
     assert "[jobs] Steve Jobs" in text and "speaking exam" in text and "Simplified Chinese" in text
-    assert "{" not in text.replace("{max", "")  # every placeholder filled
-    assert "personas" not in schema(False)["properties"]["expressions"]["items"]["properties"]
+    find = find_prompt(s)
+    for t in (text, find):
+        assert "{" not in t  # every placeholder filled
+    assert "at most 5 places" in find
+    assert "personas" not in polish_schema(False)["properties"]["items"]["items"]["properties"]
     with Recorder(recorder_db) as rec:
         m = load_material(rec, 1)
-    u = user_prompt(m.lines, m.unsure)
-    assert "L1 [me] We need" in u and "L2 [Alice]" in u and "W2: thoroughly (30% sure" in u
+        words = day_unsure(rec, "2026-10-21")
+    assert "L1 [me] We need" in transcript(m.lines) and "L2 [Alice]" in transcript(m.lines)
+    item = {"id": 7, "kind": "grammar", "said": "a", "better": "b", "context": "a c"}
+    u = polish_input([item], words)
+    assert 'id 7 (grammar): said "a" -> better "b"' in u and "W2: thoroughly (30% sure" in u
 
 
 def test_run_pending_and_report(recorder_db, tmp_path):
@@ -70,7 +77,9 @@ def test_run_pending_and_report(recorder_db, tmp_path):
     assert c.coach_db == tmp_path / "coach.db"
     assert c.pending() == [2, 1]  # newest first
     assert c.run_pending(log=lambda *a: None) == 2
-    assert len(llm.calls) == 1  # recording 2 has no English: no model call
+    # recording 2 has no English: no call; then one polish call for the day
+    assert len(llm.calls) == 2 and "items" in llm.calls[1][2]["properties"]
+    assert llm.unloaded == 1
     assert c.pending() == []
 
     r = c.day_report("2026-10-21")
@@ -100,6 +109,8 @@ def test_run_pending_and_report(recorder_db, tmp_path):
     c.run_recording(1)  # again, with the new settings: replaces the old findings
     r = c.day_report("2026-10-21")
     assert not r["stale"] and len(r["expressions"]) == 1
+    assert r["expressions"][0]["why"] and r["expressions"][0]["personas"]  # polished again
+    assert len(r["pronunciation"]) == 1  # kept, not asked for again
 
 
 def test_failure_is_recorded_and_retried(recorder_db):
@@ -138,6 +149,8 @@ def test_daily_limit(recorder_db):
     c.run_pending(log=lambda *a: None)
     got = c.day_report("2026-10-21")["expressions"]
     assert len(got) == 4 and all(e["importance"] == 5 for e in got[:2])
+    assert all(e["polished"] and e["why"] for e in got)  # only the top 4 were explained
+    assert sum(not e["polished"] for e in c.store.expressions("2026-10-21")) == 8
 
 
 def test_corpus(recorder_db):

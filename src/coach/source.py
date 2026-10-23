@@ -10,7 +10,6 @@ from recorder import Recorder, UnsureWord
 from .lang import detector
 
 UNSURE_BELOW = 0.6  # Whisper probability under which a word is marked as unsure
-MAX_UNSURE = 15  # per recording, the least sure first
 
 
 @dataclass
@@ -31,7 +30,6 @@ class Material:
     recording_id: int
     day: str | None  # YYYY-MM-DD
     lines: list[Line] = field(default_factory=list)  # lines in the target language
-    unsure: list[UnsureWord] = field(default_factory=list)  # my words, for pronunciation
 
     @property
     def sentences(self) -> int:
@@ -62,18 +60,21 @@ def load_material(rec: Recorder, recording_id: int, language: str = "en") -> Mat
         m.lines.append(
             Line(len(m.lines) + 1, u.speaker, _mark_unsure(u.text, inside), u.start, u.end)
         )
-    mine = [line for line in m.lines if line.mine]
-    m.unsure = sorted(
-        (
-            w
-            for w in unsure
-            if w.speaker == "me"
-            and w.corrected_from is None  # a corrected word was misheard, not mispronounced
-            and any(line.start <= w.start < line.end for line in mine)
-        ),
-        key=lambda w: w.probability,
-    )[:MAX_UNSURE]
     return m
+
+
+def day_unsure(rec: Recorder, day: str, language: str = "en", limit: int = 10) -> list:
+    """My least-sure words of the day in target-language sentences, one per
+    word, for the pronunciation tips."""
+    is_target = detector(language)
+    words = rec.unsure_words(day=day, speaker="me", below=UNSURE_BELOW, include_reviewed=True)
+    out, seen = [], set()
+    for w in sorted(words, key=lambda w: w.probability):
+        key = w.word.strip(" ,.?!;:\"'").lower()
+        if w.corrected_from is None and key and key not in seen and is_target(w.sentence):
+            seen.add(key)
+            out.append(w)
+    return out[:limit]
 
 
 def chunks(lines: list[Line], max_chars: int) -> list[list[Line]]:

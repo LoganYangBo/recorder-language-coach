@@ -5,7 +5,7 @@ from __future__ import annotations
 from importlib import resources
 
 # bump when a prompt changes, so reports made with the old one show as out of date
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2
 
 
 def load(language: str, name: str) -> str:

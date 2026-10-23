@@ -10,10 +10,10 @@ from pathlib import Path
 from recorder import Recorder
 
 from . import personas as personas_mod
-from .analyze import analyze
-from .llm import Ollama
+from .analyze import find, polish
+from .llm import Ollama, describe
 from .settings import Settings, load
-from .source import load_material
+from .source import day_unsure, load_material
 from .store import CoachStore
 
 MAX_ATTEMPTS = 3  # a recording that keeps failing is left alone until run by hand
@@ -80,17 +80,21 @@ class Coach:
 
     # ---- analysing ----
 
-    def run_recording(self, recording_id: int) -> dict:
-        """Analyse one recording now (again, if it was done before)."""
-        settings = self.settings
+    def _chosen_personas(self, settings: Settings) -> list:
         known = self.personas()
-        chosen = [known[k] for k in settings.personas if k in known]
+        return [known[k] for k in settings.personas if k in known]
+
+    def run_recording(self, recording_id: int, then_polish: bool = True, llm=None) -> dict:
+        """Analyse one recording now (again, if it was done before); then, unless
+        told not to, bring its day's explanations up to date."""
+        settings = self.settings
+        llm = llm or self.llm(settings)
         with self.lock:
             with self.recorder() as rec:
                 material = load_material(rec, recording_id, settings.language)
             self.current = {"recording": recording_id, "day": material.day}
             try:
-                result = analyze(material, settings, chosen, self.llm(settings))
+                result = find(material, settings, llm)
             except Exception as e:
                 self.store.save_failure(
                     recording_id, material.day, settings.model, f"{type(e).__name__}: {e}"
@@ -108,25 +112,89 @@ class Coach:
                     "seconds": result.seconds,
                 },
             )
-        return {
+        out = {
             "recording": recording_id,
             "day": material.day,
             "sentences": result.sentences,
             "expressions": len(result.expressions),
             "seconds": result.seconds,
+            "timings": describe(getattr(llm, "last", {})) if result.sentences else "",
+        }
+        if then_polish and material.day:
+            self.polish_day(material.day, llm)
+        return out
+
+    def polish_day(self, day: str, llm=None) -> dict:
+        """Explain the day's top expressions and write pronunciation tips, for
+        whatever isn't done yet: one model call."""
+        settings = self.settings
+        llm = llm or self.llm(settings)
+        with self.lock:
+            top = self.store.expressions(day)[: settings.max_expressions]
+            todo = [e for e in top if not e["polished"]]
+            with self.recorder() as rec:
+                words = day_unsure(rec, day, settings.language, settings.max_pronunciation)
+            have = {p["word_id"] for p in self.store.pronunciation(day)}
+            new_words = [w for w in words if w.word_id not in have]
+            if not todo and not new_words:
+                self.store.save_pronunciation(day, [], {w.word_id for w in words})
+                return {"day": day, "expressions": 0, "words": 0, "seconds": 0}
+            self.current = {"day": day, "polish": True}
+            try:
+                p = polish(todo, new_words, settings, self._chosen_personas(settings), llm)
+            finally:
+                self.current = None
+            rid = {w.word_id: w.recording_id for w in new_words}
+            self.store.save_polish(p)
+            self.store.save_pronunciation(
+                day, [(rid[x.word_id], x) for x in p.pronunciation], {w.word_id for w in words}
+            )
+        return {
+            "day": day,
+            "expressions": len(p.why),
+            "words": len(p.pronunciation),
+            "seconds": p.seconds,
+            "timings": describe(getattr(llm, "last", {})),
         }
 
     def run_pending(self, log=print) -> int:
-        """Analyse every pending recording; returns how many were done."""
-        n = 0
-        for rid in self.pending():
-            try:
-                r = self.run_recording(rid)
-                log(f"recording {rid} ({r['day'] or 'undated'}): {r['sentences']} sentences, "
-                    f"{r['expressions']} expressions, {r['seconds']} s")  # fmt: skip
-                n += 1
-            except Exception as e:
-                log(f"recording {rid} failed: {type(e).__name__}: {e}")
+        """Analyse every pending recording; see run()."""
+        return self.run(self.pending(), log)
+
+    def run(self, ids: list[int], log=print) -> int:
+        """Analyse these recordings, then polish the days they are on; returns
+        how many recordings were done. The model stays loaded for the whole
+        batch and is unloaded after it."""
+        if not ids:
+            return 0
+        llm = self.llm(self.settings)
+        n, days = 0, set()
+        try:
+            for rid in ids:
+                try:
+                    r = self.run_recording(rid, then_polish=False, llm=llm)
+                    log(
+                        f"recording {rid} ({r['day'] or 'undated'}): {r['sentences']} sentences, "
+                        f"{r['expressions']} candidates, {r['seconds']} s  {r['timings']}"
+                    )
+                    n += 1
+                    if r["day"]:
+                        days.add(r["day"])
+                except Exception as e:
+                    log(f"recording {rid} failed: {type(e).__name__}: {e}")
+            for day in sorted(days, reverse=True):
+                try:
+                    p = self.polish_day(day, llm)
+                    if p["seconds"]:
+                        log(
+                            f"day {day}: explained {p['expressions']} expressions, "
+                            f"{p['words']} words, {p['seconds']} s  {p['timings']}"
+                        )
+                except Exception as e:
+                    log(f"day {day} failed: {type(e).__name__}: {e}")
+        finally:
+            if hasattr(llm, "unload"):
+                llm.unload()
         return n
 
     def watch(self, interval: float = 300, log=print, stop: threading.Event | None = None) -> None:

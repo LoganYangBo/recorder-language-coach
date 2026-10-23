@@ -41,16 +41,29 @@ class App:
         threading.Thread(target=self._work, daemon=True).start()
 
     def _work(self):
+        days: set[str] = set()  # days to polish once the queue is empty
         while True:
             rid = self.jobs.get()
             try:
-                r = self.coach.run_recording(rid)
-                self.log(f"recording {rid}: {r['expressions']} expressions, {r['seconds']} s")
+                r = self.coach.run_recording(rid, then_polish=False)
+                self.log(f"recording {rid}: {r['expressions']} candidates, {r['seconds']} s")
+                if r["day"]:
+                    days.add(r["day"])
             except Exception as e:
                 self.log(f"recording {rid} failed: {type(e).__name__}: {e}")
             finally:
                 if rid in self.queued:
                     self.queued.remove(rid)
+            if self.jobs.empty():
+                for day in sorted(days, reverse=True):
+                    try:
+                        self.coach.polish_day(day)
+                    except Exception as e:
+                        self.log(f"day {day} failed: {type(e).__name__}: {e}")
+                days.clear()
+                llm = self.coach.llm(self.coach.settings)
+                if hasattr(llm, "unload"):
+                    llm.unload()
 
     def _enqueue(self, ids: list[int]) -> dict:
         new = [rid for rid in ids if rid not in self.queued]

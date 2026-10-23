@@ -135,7 +135,7 @@ function localSet(k, v) { try { localStorage.setItem("coach." + k, v); } catch {
 const STRINGS = {
   en: {
     navDay: "Daily report", navCorpus: "Corpus", navSettings: "Settings", otherLang: "中文",
-    idle: "Watching for new recordings", analysing: "Analysing recording {id}…", queued: "{n} queued",
+    idle: "Watching for new recordings", analysing: "Analysing recording {id}…", polishing: "Explaining {day}…", queued: "{n} queued",
     week: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     prevDay: "Previous day", nextDay: "Next day", rerun: "Regenerate",
     noDays: "No recordings yet. Sync your recorder, and the coach analyses new recordings within a few minutes.",
@@ -169,7 +169,7 @@ const STRINGS = {
   },
   zh: {
     navDay: "日报", navCorpus: "语料库", navSettings: "设置", otherLang: "EN",
-    idle: "自动分析运行中", analysing: "正在分析录音 {id}…", queued: "排队 {n} 条",
+    idle: "自动分析运行中", analysing: "正在分析录音 {id}…", polishing: "正在写 {day} 的讲解…", queued: "排队 {n} 条",
     week: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"],
     prevDay: "前一天", nextDay: "后一天", rerun: "重新生成",
     noDays: "还没有录音。同步录音设备后，几分钟内会自动分析新录音。",
@@ -535,7 +535,7 @@ async function pollStatus() {
     const s = await api("/api/status");
     const busy = s.current || s.queued.length;
     $("#status").innerHTML = `<span class="dot ${busy ? "busy" : ""}"></span>` + (s.current
-      ? t("analysing", { id: s.current.recording }) + (s.queued.length > 1 ? " · " + t("queued", { n: s.queued.length }) : "")
+      ? (s.current.polish ? t("polishing", { day: s.current.day }) : t("analysing", { id: s.current.recording })) + (s.queued.length > 1 ? " · " + t("queued", { n: s.queued.length }) : "")
       : s.queued.length ? t("queued", { n: s.queued.length }) : t("idle"));
     if (pollStatus.wasBusy && !busy && state.view === "day") showDay().catch(fail);  // a run just finished
     pollStatus.wasBusy = busy;

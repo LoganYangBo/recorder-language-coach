@@ -115,7 +115,7 @@ def test_cli_run_and_personas(recorder_db, capsys, monkeypatch):
     main(["--db", str(recorder_db), "run"])
     assert "2 recordings analysed" in capsys.readouterr().out
     main(["--db", str(recorder_db), "run", "--recording", "1"])
-    assert "recording 1: 1 sentences" in capsys.readouterr().out
+    assert "recording 1 (2026-10-21): 1 sentences" in capsys.readouterr().out
     main(["personas"])
     assert "Steve Jobs" in capsys.readouterr().out
     with pytest.raises(SystemExit):

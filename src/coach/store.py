@@ -117,11 +117,18 @@ MIGRATIONS = [
         created_at    TEXT NOT NULL DEFAULT (datetime('now'))
     );
     """,
+    # v2: expressions are found per recording, then the day's top ones are
+    # explained ("polished") in a second pass
+    """
+    ALTER TABLE expressions ADD COLUMN context TEXT NOT NULL DEFAULT '';
+    ALTER TABLE expressions ADD COLUMN polished INTEGER NOT NULL DEFAULT 1;
+    """,
 ]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 # per-recording results, deleted together when a recording is analysed again
-RESULT_TABLES = ("expressions", "pronunciation", "knowledge", "suggestions")
+# (pronunciation belongs to the day's polish pass, which tidies it up itself)
+RESULT_TABLES = ("expressions", "knowledge", "suggestions")
 
 
 def _statements(script: str) -> list[str]:
@@ -215,23 +222,12 @@ class CoachStore:
                     )
                 self.conn.execute(f"DELETE FROM {table} WHERE recording_id = ?", (recording_id,))
             for e in result.expressions:
-                cur = self.conn.execute(
+                self.conn.execute(
                     "INSERT INTO expressions(recording_id, day, start, end, said, better, kind, "
-                    "why, importance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "why, importance, context, polished) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
                     (recording_id, day, e.start, e.end, e.said, e.better, e.kind, e.why,
-                     e.importance),
+                     e.importance, e.context),
                 )  # fmt: skip
-                self.conn.executemany(
-                    "INSERT INTO persona_lines(expression_id, persona, line, note) "
-                    "VALUES (?, ?, ?, ?)",
-                    [(cur.lastrowid, p.persona, p.line, p.note) for p in e.personas],
-                )
-            self.conn.executemany(
-                "INSERT INTO pronunciation(recording_id, day, word_id, word, ipa, probability, "
-                "tip, start, end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [(recording_id, day, p.word_id, p.word, p.ipa, p.probability, p.tip, p.start,
-                  p.end) for p in result.pronunciation],
-            )  # fmt: skip
             self.conn.executemany(
                 "INSERT INTO knowledge(recording_id, day, term, category, explanation, evidence, "
                 "quote, speaker, start, end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -254,6 +250,40 @@ class CoachStore:
                 "seconds = excluded.seconds, updated_at = datetime('now')",
                 (recording_id, day, status, meta.get("model"), meta.get("settings"),
                  result.sentences, meta.get("seconds")),
+            )  # fmt: skip
+
+    # ---- the day's polish pass ----
+
+    def save_polish(self, polish) -> None:
+        """Store explanations and famous people's lines (an analyze.Polish)."""
+        with self.conn:
+            for eid, why in polish.why.items():
+                self.conn.execute(
+                    "UPDATE expressions SET why = ?, polished = 1 WHERE id = ?", (why, eid)
+                )
+                self.conn.execute("DELETE FROM persona_lines WHERE expression_id = ?", (eid,))
+                self.conn.executemany(
+                    "INSERT INTO persona_lines(expression_id, persona, line, note) "
+                    "VALUES (?, ?, ?, ?)",
+                    [(eid, p.persona, p.line, p.note) for p in polish.personas.get(eid, [])],
+                )
+
+    def save_pronunciation(self, day: str, rows: list, keep: set[int]) -> None:
+        """Add tips (analyze.Pronunciation with recording_id) and drop the day's
+        tips for words no longer among `keep` (word ids)."""
+        with self.conn:
+            for (wid,) in self.conn.execute(
+                "SELECT word_id FROM pronunciation WHERE day = ?", (day,)
+            ).fetchall():
+                if wid not in keep:
+                    self.conn.execute(
+                        "DELETE FROM pronunciation WHERE day = ? AND word_id = ?", (day, wid)
+                    )
+            self.conn.executemany(
+                "INSERT INTO pronunciation(recording_id, day, word_id, word, ipa, probability, "
+                "tip, start, end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [(rid, day, p.word_id, p.word, p.ipa, p.probability, p.tip, p.start, p.end)
+                 for rid, p in rows],
             )  # fmt: skip
 
     # ---- what the day report reads ----

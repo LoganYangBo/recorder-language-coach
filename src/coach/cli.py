@@ -23,16 +23,8 @@ def cmd_run(args) -> None:
     elif args.day:
         ids = c.recordings_on(args.day)
     else:
-        n = c.run_pending()
-        print(f"{n} recordings analysed")
-        return
-    for rid in ids:
-        try:
-            r = c.run_recording(rid)
-            print(f"recording {rid}: {r['sentences']} sentences, "
-                  f"{r['expressions']} expressions, {r['seconds']} s")  # fmt: skip
-        except Exception as e:
-            print(f"recording {rid} failed: {type(e).__name__}: {e}")
+        ids = c.pending()
+    print(f"{c.run(ids)} recordings analysed")
 
 
 def cmd_watch(args) -> None:

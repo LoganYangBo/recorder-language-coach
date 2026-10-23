@@ -48,8 +48,13 @@ coach --db C:\Users\Logan\Projects\recorder-sdk\recorder.db ui
 ```
 
 This opens http://127.0.0.1:8766/ and analyses new recordings every 5 minutes.
-Ollama unloads the model after each recording (`keep_alive: 0`) so Whisper has the
-GPU back.
+The model works in two passes: a short one per recording that only spots
+candidates, then one call per day that explains the day's top expressions and
+writes the pronunciation tips. It stays loaded during a batch and is unloaded
+after it, so Whisper has the GPU back. The console logs how long each call took
+and how fast the model ran (tokens/s); if that is slow, run `ollama ps` while it
+works: anything other than `100% GPU` means part of the model is on the CPU, and a
+smaller model (`qwen3:8b`) or a smaller context in Settings helps.
 
 Other commands:
 

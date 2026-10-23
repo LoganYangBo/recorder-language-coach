@@ -1,16 +1,26 @@
+import re
+
 import pytest
 from recorder import Segment, Store, Transcript, Word
 
 
 class FakeLLM:
-    """Answers like the model would, pointing at the lines it is shown."""
+    """Answers like the model would, pointing at the lines and ids it is shown.
+    `answer` (a dict, or a function of system and user) replaces the find
+    pass's answer; the polish pass always gets the default."""
 
     def __init__(self, answer=None):
         self.calls = []
         self.answer = answer
+        self.unloaded = 0
+
+    def unload(self):
+        self.unloaded += 1
 
     def chat(self, system, user, schema):
         self.calls.append((system, user, schema))
+        if "items" in schema["properties"]:
+            return polish_answer(user)
         if callable(self.answer):
             return self.answer(system, user)
         if self.answer is not None:
@@ -22,31 +32,11 @@ class FakeLLM:
                     "said": "discuss about the timeline",
                     "better": "discuss the timeline",
                     "kind": "grammar",
-                    "why": "discuss 后面直接跟宾语",
                     "importance": 4,
-                    "personas": [
-                        {"persona": "jobs", "line": "Let's talk timeline.", "note": "短"},
-                        {"persona": "nobody", "line": "dropped", "note": "unknown persona"},
-                    ],
                 },
-                {
-                    "line": 2,
-                    "said": "x",
-                    "better": "y",
-                    "kind": "grammar",
-                    "why": "",
-                    "importance": 2,
-                },
-                {
-                    "line": 99,
-                    "said": "a",
-                    "better": "b",
-                    "kind": "word",
-                    "why": "",
-                    "importance": 5,
-                },
+                {"line": 2, "said": "x", "better": "y", "kind": "grammar", "importance": 2},
+                {"line": 99, "said": "a", "better": "b", "kind": "word", "importance": 5},
             ],
-            "pronunciation": [{"word_id": 2, "tip": "th 要咬舌"}, {"word_id": 999, "tip": "?"}],
             "knowledge": [
                 {
                     "line": 2,
@@ -66,6 +56,27 @@ class FakeLLM:
                 }
             ],
         }
+
+
+def polish_answer(user):
+    ids = [int(x) for x in re.findall(r"^id (\d+)", user, re.M)]
+    words = [int(x) for x in re.findall(r"^W(\d+):", user, re.M)]
+    return {
+        "items": [
+            {
+                "id": i,
+                "why": "discuss 后面直接跟宾语",
+                "personas": [
+                    {"persona": "jobs", "line": "Let's talk timeline.", "note": "短"},
+                    {"persona": "nobody", "line": "dropped", "note": "unknown persona"},
+                ],
+            }
+            for i in ids
+        ]
+        + [{"id": 9999, "why": "not asked"}],
+        "pronunciation": [{"word_id": w, "tip": "th 要咬舌"} for w in words]
+        + [{"word_id": 999, "tip": "?"}],
+    }
 
 
 @pytest.fixture
