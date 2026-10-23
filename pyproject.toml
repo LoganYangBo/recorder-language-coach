@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "recorder-language-coach"
+version = "0.1.0"
+description = "A speaking coach that reviews what you said each day, built on recorder-sdk"
+readme = "README.md"
+requires-python = ">=3.10"
+# only the SDK's core (NumPy) and its pronunciation dictionary: no Whisper, no torch
+dependencies = ["recorder[learn] @ git+https://github.com/LoganYangBo/recorder-sdk@v0.3.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff"]
+
+[project.scripts]
+coach = "coach.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+coach = ["web.html", "persona_cards/*.md", "prompts/*/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F"]
