@@ -48,6 +48,42 @@ def cmd_ui(args) -> None:
     )
 
 
+def cmd_bench(args) -> None:
+    """Time the find pass on one recording in a few setups, to see what is slow."""
+    from .analyze import find_prompt, find_schema, transcript
+    from .llm import Ollama, describe
+    from .source import load_material
+
+    c = _coach(args)
+    s = c.settings
+    with c.recorder() as rec:
+        m = load_material(rec, args.recording, s.language)
+    if not m.lines:
+        sys.exit(f"recording {args.recording} has nothing in {s.language}")
+    system, user = find_prompt(s), transcript(m.lines)
+    setups = [
+        ("schema", find_schema(), s.num_ctx),
+        ("schema again", find_schema(), s.num_ctx),
+        ("json", "json", s.num_ctx),
+        ("no format", None, s.num_ctx),
+        ("schema, ctx 4096", find_schema(), 4096),
+    ]
+    print(f"model {s.model}, recording {args.recording}: {len(m.lines)} lines, {len(user)} chars")
+    for name, fmt, ctx in setups:
+        llm = Ollama(s.model, s.ollama_url, ctx)
+        try:
+            llm.chat(system, user, fmt)
+        except Exception as e:  # e.g. "no format" answers that aren't JSON
+            if not llm.last:
+                print(f"{name:18} failed: {e}")
+                continue
+        where = ", ".join(
+            f"{x['gpu']}% GPU, {x['size_gb']} GB, ctx {x['context']}" for x in llm.loaded()
+        )
+        print(f"{name:18} {describe(llm.last)}, total {llm.last['total_s']} s  [{where}]")
+    Ollama(s.model, s.ollama_url).unload()
+
+
 def cmd_personas(args) -> None:
     from . import personas
 
@@ -86,6 +122,10 @@ def main(argv: list[str] | None = None) -> None:
     )
     p.add_argument("--no-browser", action="store_true")
     p.set_defaults(func=cmd_ui)
+
+    p = sub.add_parser("bench", help="time the model on one recording, to see what is slow")
+    p.add_argument("recording", type=int)
+    p.set_defaults(func=cmd_bench)
 
     p = sub.add_parser("personas", help="list the famous people you can pick")
     p.set_defaults(func=cmd_personas)

@@ -51,18 +51,19 @@ class Ollama:
         except urllib.error.URLError as e:
             raise LLMError(f"can't reach Ollama at {self.url} ({e.reason}); is it running?") from e
 
-    def chat(self, system: str, user: str, schema: dict) -> dict:
+    def chat(self, system: str, user: str, schema: dict | str | None) -> dict:
         body = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            "format": schema,
             "stream": False,
             "keep_alive": self.keep_alive,
             "options": {"temperature": 0.2, "num_ctx": self.num_ctx},
         }
+        if schema is not None:
+            body["format"] = schema
         if self._think:
             body["think"] = False
         try:
@@ -86,6 +87,26 @@ class Ollama:
             self._post("/api/generate", {"model": self.model, "keep_alive": 0})
         except LLMError:
             pass
+
+    def loaded(self) -> list[dict]:
+        """What `ollama ps` shows: each loaded model and how much of it is on the GPU."""
+        req = urllib.request.Request(self.url + "/api/ps")
+        try:
+            with urllib.request.urlopen(req, timeout=5) as res:
+                models = json.loads(res.read()).get("models", [])
+        except (OSError, ValueError):
+            return []
+        return [
+            {
+                "name": m.get("name"),
+                "size_gb": round((m.get("size") or 0) / 2**30, 1),
+                "gpu": round(100 * (m.get("size_vram") or 0) / m["size"])
+                if m.get("size")
+                else None,
+                "context": m.get("context_length"),
+            }
+            for m in models
+        ]
 
     def models(self) -> list[str]:
         """Models pulled into Ollama, for the Settings page."""
